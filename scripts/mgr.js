@@ -8,6 +8,7 @@
 * 3：解压
 * 4：下载
 * */
+require('./../common/constant');
 const NPATH = require('path');
 const NFS = require('fs');
 const glob = require("glob");
@@ -15,9 +16,7 @@ const archiver = require("archiver");
 const extractZip = require('extract-zip');
 const _ = require('lodash');
 const shortid = require('shortid');
-const ROOT_SCRIPT_PATH = NPATH.resolve('./'); //脚本存放根路径
-const SCRIPT_PKG_PATH = ROOT_SCRIPT_PATH + "/pkg/"; //脚本包存放路径
-const logger = require('log4js').getLogger("script-mgr");
+const logger = require('log4js').getLogger("script-mgr");//日志组件
 const OS_SEP = NPATH.sep;
 const SCRIPT_NAME_EN_DASH = ".";
 logger.level = 'debug';
@@ -25,12 +24,12 @@ logger.level = 'debug';
 * 本管理器支持的管理的类型
 * */
 const MGR_TYPES = ['leaf','task'];
-const DEF_CONFIG_FILE_NAME = "config.js";
+const DEF_CONFIG_FILE_NAME = SCRIPT_TASK_DEF_CONFIG_FILE_NAME;
 /*
 * ==============================================================
 * 枚举脚本
 * @脚本
-* 所有脚本存放在ROOT_SCRIPT_PATH路径
+* 所有脚本存放在SCRIPT_PATH路径
 * 每个脚本都是一个目录
 * 如果目录包含DEF_CONFIG_FILE_NAME，他就是脚本
 * 脚本名scriptName.取自所在目录路径，去掉当前目录，分隔符换成SCRIPT_NAME_EN_DASH
@@ -38,7 +37,7 @@ const DEF_CONFIG_FILE_NAME = "config.js";
 * @支持类型
 * 只枚举MGR_TYPES指定的脚本，MGR_TYPES内元素是目录名
 * @脚本示例
-* 有个目录 ROOT_SCRIPT_PATH\leaf\noky\test,包含了config.js
+* 有个目录 SCRIPT_PATH\leaf\noky\test,包含了config.js
 * 他就是一个脚本，scriptName = leaf.noky.test
 * @param    string  type    枚举的管理类型
 * @return   array
@@ -48,10 +47,11 @@ class enumScripts{
     /*
     * 查找脚本目录
     * 返回查找到的路径,是绝对路径
+    * 如果type为空，查找所有类型
     * @return   array
     * */
     async findFolder( type ){
-        let findPath = ROOT_SCRIPT_PATH + OS_SEP + ( ( type ) ? type : `?(${ MGR_TYPES.join("|") })` );
+        let findPath = SCRIPT_PATH + OS_SEP + ( ( type ) ? type : `?(${ MGR_TYPES.join("|") })` );
         let endFile = DEF_CONFIG_FILE_NAME;
         return new Promise((S,J)=>{
             glob(`${findPath}/**/${endFile}`, {}, function (er, files) {
@@ -70,14 +70,14 @@ class enumScripts{
     }
     /*
     * 转换为scriptName
-    * 传入的file元素是每个脚本路径，去掉ROOT_SCRIPT_PATH，分隔符换成SCRIPT_NAME_EN_DASH即是scriptName
+    * 传入的file元素是每个脚本路径，去掉SCRIPT_PATH，分隔符换成SCRIPT_NAME_EN_DASH即是scriptName
     * @return   array[ str,str ]
     * */
     async makeScriptName( files ){
         let res = [];
         return new Promise((S,J)=>{
             for(let file of files){
-                let SCRIPT_ID_PATH = NPATH.normalize( NPATH.relative(ROOT_SCRIPT_PATH, file) ).split(OS_SEP);
+                let SCRIPT_ID_PATH = NPATH.normalize( NPATH.relative(SCRIPT_PATH, file) ).split(OS_SEP);
                 if( SCRIPT_ID_PATH.length <= 1 ){
                     return J(new Error(`empty file: ${ file }`));
                 }
@@ -101,17 +101,16 @@ class enumScripts{
     }
     /*
     * 获取某个类型的脚本列表
-    * @return   obj{ x.y.z:{ des:"xxx" } }
+    * @return   obj{ x.y.z:{ conf } }
     * */
-    async get( type ){
+    async enum( type ){
         return new Promise(async (S,J)=>{
             try{
-                let res = [];
+                let res = {};
                 let scriptNames = await this.makeScriptName( await this.findFolder( type ) );
                 for(let scriptName of scriptNames){
                     let conf = await this.readConfig( scriptName );
-                    let scriptInfo = { name:scriptName,conf };
-                    res.push( scriptInfo );
+                    res[ scriptName ] = conf;
                 }
                 return S( res );
             }
@@ -125,7 +124,7 @@ class enumScripts{
     * */
     static scriptNameToFullPath( scriptName ){
         let ID_PATH = scriptName.split( SCRIPT_NAME_EN_DASH );
-        return `${ROOT_SCRIPT_PATH}${OS_SEP}${ ID_PATH.join(OS_SEP) }`;
+        return `${SCRIPT_PATH}${OS_SEP}${ ID_PATH.join(OS_SEP) }`;
     }
 }
 /*
@@ -170,19 +169,20 @@ class pkg{
             NFS.exists( zipFile ,( s )=> !s ? J( `un error,file not exist: ${zipFile}` ) : S() )
         })
             .then(()=>{
-                extractZip( zipFile ,{dir: ROOT_SCRIPT_PATH} ,( err )=>{
+                extractZip( zipFile ,{dir: SCRIPT_PATH} ,( err )=>{
                     return err ? Promise.reject( err ) : Promise.resolve();
                 });
             })
     }
 }
 /*
-* =========================
-* test
-* =========================
+* 导出接口
 * */
-/*new enumScripts().get( null ).then(async ( scriptList )=>{
-    let pkgPath = await pkg.make( _.map(scriptList, (s)=>s.name) );
-}).catch(( e )=>{
-    logger.error( e );
-});*/
+module.exports = {
+    /*
+    * 获取所有脚本
+    * */
+    allScripts: async function( type = null ){
+        return (new enumScripts()).enum( type );
+    }
+};
