@@ -13,6 +13,8 @@ const TYPE_REGEX = {
     "NAME":  /^@([0-9a-z]+)$/gi, //按名称直接引用
     "ALL":  /all/gi, //全部引用
 };
+const logger = require('log4js').getLogger("task-quoter");//日志组件
+logger.level = 'debug';
 let STEP_VAR_LIST = {}; //全局步进变量列表，记录变量对应的当前位置
 /*
 * MAIN CLASS

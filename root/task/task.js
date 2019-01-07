@@ -41,8 +41,10 @@
 *   如果Y>N,判断allow_overstep=1忽略，allow_overstep=0报错
 * */
 const _ = require('lodash');
-const alloc = require('./alloc'); //leaf分配器
+const alloter = require('./alloter'); //leaf分配器
 const quoter = require('./quoter'); //节点引用器
+const logger = require('log4js').getLogger("task");//日志组件
+logger.level = 'debug';
 /*
 * 导出任务类
 * */
@@ -58,6 +60,7 @@ module.exports = class task{
             save: true,//数据是否存储,默认是
             db: Date.now(),//数据库存储名称
             allocQueue: [], //分配队列，用于将任务分配给节点
+            allocRes: [], //分配结果
             nodeList, //当前的节点列表
         },(v,k)=>{
             this[k] = _.has(taskConf,k) ? taskConf[k] : v;
@@ -70,21 +73,22 @@ module.exports = class task{
         this.nodeQuoter = new quoter( nodeList );
     }
     /*
-    * 任务初始化
+    * 分配leaf
     * 将配置中leaf，分配给node
     * */
-    async init(){
-        //读取leaf分配队列，遍历分配leaf
-        let aqConf =  this.allocQueue;
-        if( !_.isArray(aqConf) || aqConf.length === 0 ){
+    async alloc(){
+        //检查配置中，leaf分配队列是否正确
+        let AQConf =  this.allocQueue || [];
+        if( !_.isArray( AQConf ) || AQConf.length === 0 ){
             throw new Error('allocQueues wrong!');
         }
         //遍历队列项，挨个进行分配
-        for(let key in aqConf){
-            if( aqConf.hasOwnProperty(key) ){
-                await alloc( this.nodeQuoter,aqConf[key] )
-            }
+        this.allocRes = [];
+        for(let AQConfItem of AQConf){
+            this.allocRes.push(await alloter( this.nodeQuoter,AQConfItem ) );
         }
+        //返回结果
+        return this.allocRes;
     }
     /*
     * 从文件构建任务

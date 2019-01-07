@@ -14,6 +14,8 @@ let nodeList = [
 
 let t = task.fromFile( nodeList,`${SCRIPT_TASK_PATH}${OS_SEP}def${OS_SEP}`);
 
-t.init().catch(( e )=>{
+t.alloc().then((res)=>{
+    console.log( res );
+}).catch(( e )=>{
     console.error( e );
 });
