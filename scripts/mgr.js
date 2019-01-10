@@ -185,4 +185,7 @@ module.exports = {
     allScripts: async function( type = null ){
         return (new enumScripts()).enum( type );
     }
+    /*
+    * 发送脚本
+    * */
 };
